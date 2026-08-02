@@ -1,0 +1,378 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- ระบบเลือกตำแหน่ง UI แบบปลอดภัย
+local parentGui
+local success, result = pcall(function()
+	if gethui then
+		return gethui()
+	elseif game:GetService("CoreGui") then
+		return game:GetService("CoreGui")
+	end
+end)
+
+if success and result then
+	parentGui = result
+else
+	parentGui = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- ลบ UI เก่าออกก่อน
+if parentGui:FindFirstChild("AllInOne_Ultimate_Hub_Fixed") then
+	parentGui["AllInOne_Ultimate_Hub_Fixed"]:Destroy()
+end
+
+-- Variables
+local isSpinning = false
+local spinSpeed = 9999 -- ปรับความเร็วการหมุนเป็น 9999
+local savedCodes = {}
+local isAutoRunning = false
+local isESPActive = false
+local tpButtons = {}
+
+-- =============================================
+-- CREATING UI
+-- =============================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AllInOne_Ultimate_Hub_Fixed"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = parentGui
+
+-- 1. ปุ่มวงกลม Toggle MENU
+local ToggleUI = Instance.new("TextButton")
+ToggleUI.Name = "ToggleButton"
+ToggleUI.Size = UDim2.new(0, 45, 0, 45)
+ToggleUI.Position = UDim2.new(0.02, 0, 0.2, 0)
+ToggleUI.Text = "MENU"
+ToggleUI.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+ToggleUI.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleUI.Font = Enum.Font.SourceSansBold
+ToggleUI.TextSize = 12
+ToggleUI.Active = true
+ToggleUI.Draggable = true
+ToggleUI.Parent = ScreenGui
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(1, 0)
+ToggleCorner.Parent = ToggleUI
+
+-- 2. กรอบหลัก (MainFrame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 450, 0, 260)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -130)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+-- Title Bar
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "Ultimate Executor & Utility Hub"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 14
+Title.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = Title
+
+-- --- LEFT SIDE: EXECUTOR BOX ---
+local CodeBox = Instance.new("TextBox")
+CodeBox.Parent = MainFrame
+CodeBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+CodeBox.Position = UDim2.new(0.03, 0, 0.15, 0)
+CodeBox.Size = UDim2.new(0.48, 0, 0.80, 0)
+CodeBox.Font = Enum.Font.Code
+CodeBox.PlaceholderText = "วางโค้ดสคริปต์ที่นี่..."
+CodeBox.Text = ""
+CodeBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+CodeBox.TextSize = 11
+CodeBox.TextXAlignment = Enum.TextXAlignment.Left
+CodeBox.TextYAlignment = Enum.TextYAlignment.Top
+CodeBox.ClearTextOnFocus = false
+CodeBox.MultiLine = true
+
+local CodeBoxCorner = Instance.new("UICorner")
+CodeBoxCorner.CornerRadius = UDim.new(0, 6)
+CodeBoxCorner.Parent = CodeBox
+
+-- --- RIGHT SIDE: SCROLLING BUTTONS & TP LIST ---
+local ButtonContainer = Instance.new("ScrollingFrame")
+ButtonContainer.Name = "ButtonContainer"
+ButtonContainer.Parent = MainFrame
+ButtonContainer.Position = UDim2.new(0.54, 0, 0.15, 0)
+ButtonContainer.Size = UDim2.new(0.43, 0, 0.80, 0)
+ButtonContainer.BackgroundTransparency = 1
+ButtonContainer.BorderSizePixel = 0
+ButtonContainer.ScrollBarThickness = 4
+ButtonContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ButtonContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = ButtonContainer
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Padding = UDim.new(0, 5)
+
+UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	ButtonContainer.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 15)
+end)
+
+local function createButton(text, color, order)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.95, 0, 0, 26)
+	btn.BackgroundColor3 = color
+	btn.Text = text
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 12
+	btn.LayoutOrder = order
+	btn.Parent = ButtonContainer
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = btn
+
+	return btn
+end
+
+local ButtonRunOnce  = createButton("🚀 รันโค้ด 1 ครั้ง", Color3.fromRGB(0, 170, 70), 1)
+local ButtonCopy     = createButton("📋 คัดลอกโค้ด", Color3.fromRGB(0, 110, 220), 2)
+local ButtonSave     = createButton("💾 บันทึกโค้ด", Color3.fromRGB(70, 70, 70), 3)
+local ButtonAutoRun  = createButton("🔄 รันรัวๆ: OFF", Color3.fromRGB(180, 0, 0), 4)
+local SpinButton     = createButton("🌀 Spin 9999: OFF", Color3.fromRGB(140, 0, 180), 5)
+local ESPButton      = createButton("👁️ ESP Box&Name: OFF", Color3.fromRGB(180, 0, 50), 6)
+
+-- ส่วนหัวข้อระบบ TP รายชื่อคน
+local TPHeader = Instance.new("TextLabel")
+TPHeader.Size = UDim2.new(0.95, 0, 0, 18)
+TPHeader.Text = "--- 📍 รายชื่อสำหรับ Teleport ---"
+TPHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+TPHeader.BackgroundTransparency = 1
+TPHeader.Font = Enum.Font.SourceSansBold
+TPHeader.TextSize = 11
+TPHeader.LayoutOrder = 7
+TPHeader.Parent = ButtonContainer
+
+-- ปุ่มกด Refresh รายชื่อผู้เล่น
+local RefreshTPBtn = createButton("🔄 รีเฟรชรายชื่อคน", Color3.fromRGB(80, 80, 80), 😎
+
+-- =============================================
+-- LOGIC & FUNCTIONS
+-- =============================================
+
+ToggleUI.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- EXECUTOR LOGIC
+ButtonCopy.MouseButton1Click:Connect(function()
+	if CodeBox.Text ~= "" and setclipboard then
+		setclipboard(CodeBox.Text)
+	end
+end)
+
+ButtonRunOnce.MouseButton1Click:Connect(function()
+	if CodeBox.Text ~= "" then
+		local execSuccess, err = pcall(function()
+			local func = loadstring(CodeBox.Text)
+			if func then func() end
+		end)
+		if not execSuccess then warn("[ERROR]:", err) end
+	end
+end)
+
+ButtonSave.MouseButton1Click:Connect(function()
+	if CodeBox.Text ~= "" then
+		table.insert(savedCodes, CodeBox.Text)
+	end
+end)
+
+ButtonAutoRun.MouseButton1Click:Connect(function()
+	isAutoRunning = not isAutoRunning
+	ButtonAutoRun.Text = isAutoRunning and "🔄 รันรัวๆ: ON" or "🔄 รันรัวๆ: OFF"
+	ButtonAutoRun.BackgroundColor3 = isAutoRunning and Color3.fromRGB(0, 180, 70) or Color3.fromRGB(180, 0, 0)
+	if isAutoRunning then
+		task.spawn(function()
+			while isAutoRunning do
+				if CodeBox.Text ~= "" then pcall(function() loadstring(CodeBox.Text)() end) end
+				task.wait(1)
+			end
+		end)
+	end
+end)
+
+-- SPIN SELF LOGIC (Speed 9999)
+RunService.RenderStepped:Connect(function()
+	if isSpinning then
+		local char = LocalPlayer.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+		end
+	end
+end)
+
+SpinButton.MouseButton1Click:Connect(function()
+	isSpinning = not isSpinning
+	SpinButton.Text = isSpinning and "🌀 Spin 9999: ON" or "🌀 Spin 9999: OFF"
+	SpinButton.BackgroundColor3 = isSpinning and Color3.fromRGB(0, 180, 70) or Color3.fromRGB(140, 0, 180)
+end)
+
+-- TELEPORT LOGIC
+local function teleportTo(targetPlayer)
+	local localChar = LocalPlayer.Character
+	local targetChar = targetPlayer.Character
+
+	if localChar and targetChar then
+		local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+		local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+
+		if localRoot and targetRoot then
+			localRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -3)
+		end
+	end
+end
+
+local function refreshTPList()
+	for _, btn in ipairs(tpButtons) do
+		if btn and btn.Parent then btn:Destroy() end
+	end
+	tpButtons = {}
+
+	local orderCount = 9
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(0.95, 0, 0, 24)
+			btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+			btn.Text = "👉 " .. player.Name
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.Font = Enum.Font.SourceSansBold
+			btn.TextSize = 11
+			btn.LayoutOrder = orderCount
+			btn.Parent = ButtonContainer
+
+			local btnCorner = Instance.new("UICorner")
+			btnCorner.CornerRadius = UDim.new(0, 5)
+			btnCorner.Parent = btn
+
+			btn.MouseButton1Click:Connect(function()
+				teleportTo(player)
+			end)
+			
+			table.insert(tpButtons, btn)
+			orderCount = orderCount + 1
+		end
+	end
+end
+
+RefreshTPBtn.MouseButton1Click:Connect(refreshTPList)
+Players.PlayerAdded:Connect(refreshTPList)
+Players.PlayerRemoving:Connect(refreshTPList)
+
+task.spawn(function()
+	task.wait(1)
+	refreshTPList()
+end)
+
+-- ESP LOGIC
+local function applyESP(player)
+	if player == LocalPlayer then return end
+	local function setupCharacter(char)
+		if not char then return end
+		local head = char:WaitForChild("Head", 5)
+		if not head then return end
+
+		local highlight = char:FindFirstChild("ESPHighlight") or Instance.new("Highlight")
+		highlight.Name = "ESPHighlight"
+		highlight.Adornee = char
+		highlight.FillTransparency = 0.6
+		highlight.FillColor = Color3.fromRGB(255, 0, 0)
+		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		highlight.Enabled = isESPActive
+		highlight.Parent = char
+
+		local gui = head:FindFirstChild("ESPNameGui") or Instance.new("BillboardGui")
+		gui.Name = "ESPNameGui"
+		gui.Adornee = head
+		gui.Size = UDim2.new(0, 200, 0, 50)
+		gui.StudsOffset = Vector3.new(0, 2.5, 0)
+		gui.AlwaysOnTop = true
+		gui.Enabled = isESPActive
+
+		local textLabel = gui:FindFirstChild("NameLabel") or Instance.new("TextLabel")
+		textLabel.Name = "NameLabel"
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.BackgroundTransparency = 1
+		textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		textLabel.TextStrokeTransparency = 0
+		textLabel.Font = Enum.Font.SourceSansBold
+		textLabel.TextSize = 14
+		textLabel.Text = player.Name
+		textLabel.Parent = gui
+
+		gui.Parent = head
+	end
+
+	if player.Character then setupCharacter(player.Character) end
+	player.CharacterAdded:Connect(setupCharacter)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do applyESP(player) end
+Players.PlayerAdded:Connect(applyESP)
+
+RunService.Heartbeat:Connect(function()
+	if not isESPActive then return end
+	local localChar = LocalPlayer.Character
+	local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local root = player.Character:FindFirstChild("HumanoidRootPart")
+			local head = player.Character:FindFirstChild("Head")
+			if root and head and head:FindFirstChild("ESPNameGui") then
+				local label = head.ESPNameGui:FindFirstChild("NameLabel")
+				if label then
+					local distance = localRoot and math.floor((localRoot.Position - root.Position).Magnitude) or 0
+					label.Text = player.Name .. " [" .. distance .. "m]"
+				end
+			end
+		end
+	end
+end)
+
+ESPButton.MouseButton1Click:Connect(function()
+	isESPActive = not isESPActive
+	ESPButton.Text = isESPActive and "👁️ ESP Box&Name: ON" or "👁️ ESP Box&Name: OFF"
+	ESPButton.BackgroundColor3 = isESPActive and Color3.fromRGB(0, 180, 70) or Color3.fromRGB(180, 0, 50)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local highlight = player.Character:FindFirstChild("ESPHighlight")
+			local head = player.Character:FindFirstChild("Head")
+			local nameGui = head and head:FindFirstChild("ESPNameGui")
+
+			if highlight then highlight.Enabled = isESPActive end
+			if nameGui then nameGui.Enabled = isESPActive end
+		end
+	end
+end)
+
+-- แจ้งเตือนเมื่อโหลดสำเร็จ
+pcall(function()
+	StarterGui:SetCore("SendNotification", {
+		Title = "Spin 9999 Loaded!";
+		Text = "ปรับความเร็วหมุนภาพเป็น 9999 เรียบร้อยแล้ว";
+		Duration = 4;
+	})
+end)
+
